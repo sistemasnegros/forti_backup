@@ -3,3 +3,4 @@ priv*
 *.log
 *.dev
 backup/*
+!backup/here_backups

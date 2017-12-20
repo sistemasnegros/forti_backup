@@ -3,11 +3,12 @@
 import os
 import argparse
 import logging
-import threading
-import shutil
+#import threading
+#import shutil
 import datetime
 import time
 
+from multiprocessing import Process
 
 from paramiko import SSHClient
 import paramiko
@@ -43,6 +44,8 @@ FILE_CSV_PATH = PROJECT_DIR.child(FILE_CSV)
 
 NAME_FOLDER_BACKUP = "backup"
 NAME_FOLDER_BACKUP_PATH = PROJECT_DIR.child(NAME_FOLDER_BACKUP)
+
+#outlock = threading.Lock()
 
 
 def loading_args():
@@ -94,15 +97,18 @@ def conect_fortigate(hostname, port, username, password):
     ssh = SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     # print ssh
-    ssh.connect(hostname, port=int(port), username=username, password=password, timeout=30)
+    ssh.connect(hostname, port=int(port), username=username, password=password, timeout=10, allow_agent=False, look_for_keys=False)
 
     return ssh
 
 
 def exec_fortigate(ssh, comando):
+    #global outlock
 
     stdin, stdout, stderr = ssh.exec_command(comando)
+
     outlines = stdout.read()
+    # with outlock:
 
     ssh.close()
 
@@ -113,6 +119,7 @@ def exec_fortigate(ssh, comando):
 
 def worker(forti, numero_copias):
     """funcion que realiza el trabajo en el thread"""
+    logging.info('Process id {} - Start: {}. '.format(os.getpid(), forti["name"]))
     try:
         ssh = conect_fortigate(
             forti["host"],
@@ -127,18 +134,21 @@ def worker(forti, numero_copias):
         hora = time.strftime("%H-%M-%S")
 
         ruta_destino = NAME_FOLDER_BACKUP_PATH.child(forti["name"])
+
         name_file_backup_latest = "forti-%s-time-%s.txt" % (fecha, hora)
-        path_name_temp = PROJECT_DIR.child(name_file_backup_latest)
 
-        witter_file(name_file_backup_latest, data.replace("--More--", ""))
+        #path_name_temp = PROJECT_DIR.child(name_file_backup_latest)
+        path_name_temp = ruta_destino.child(name_file_backup_latest)
 
-        controller_backup(forti["name"], NAME_FOLDER_BACKUP_PATH, path_name_temp, ruta_destino, numero_copias)
+        #witter_file(name_file_backup_latest, data.replace("--More--", ""))
 
-        logging.info('Copia de Seguridad Completada Correctamente en: {}. '.format(forti["name"]))
+        controller_backup(forti["name"], NAME_FOLDER_BACKUP_PATH, path_name_temp, ruta_destino, numero_copias, data)
+
+        logging.info('Process id {} - Copia de Seguridad Completada Correctamente en: {}. '.format(os.getpid(), forti["name"]))
 
     except Exception as e:
 
-        logging.error("Error en la copia de seguridad: {} {}.".format(e, forti["name"]))
+        logging.error("Process id {} - Error en la copia de seguridad: {} {}.".format(os.getpid(), e, forti["name"]))
 
 
 def fun_send_mail(config, args, data_log=""):
@@ -197,12 +207,14 @@ def folder_device(folder_backup, name_folder):
         os.mkdir(folder_backup.child(name_folder))
 
 
-def controller_backup(folder_name, backup_path, path_name_temp, ruta_destino, numero_copias):
+def controller_backup(folder_name, backup_path, path_name_temp, ruta_destino, numero_copias, data):
 
     # Nombre del archivo que va quedar con la copia mas reciente
 
     # Si no exite la carpeta que guarda el historial del dispositivo, se crea!
     folder_device(backup_path, folder_name)
+
+    witter_file(path_name_temp, data.replace("--More--", ""))
 
     folder_incremental(path_name_temp, ruta_destino, numero_copias, "forti")
 
@@ -222,7 +234,7 @@ def main():
     # Esto toma el nombre del archivo conf por defecto y cargar de la raiz del folder
     config = load_config(args.config)
 
-    list_fortigates = parser_cvs(FILE_CSV_PATH, config.get("GENERAL", "fields_csv").split(","))
+    list_fortigates = parser_cvs(args.csv, config.get("GENERAL", "fields_csv").split(","))
 
     threads = []
 
@@ -242,12 +254,14 @@ def main():
             logging.info(log)
             continue
 
-        t = threading.Thread(target=worker, args=(forti, numero_copias))
-
-        # time.sleep(2)
+        #t = threading.Thread(target=worker, args=(forti, numero_copias))
+        t = Process(target=worker, args=(forti, numero_copias))
 
         t.start()
         threads.append(t)
+        time.sleep(0.5)
+
+        # t.join()
 
     # Si no es una prueba
     if not args.test:

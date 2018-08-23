@@ -9,6 +9,7 @@ import datetime
 import time
 
 from multiprocessing import Process
+import multiprocessing
 
 from paramiko import SSHClient
 import paramiko
@@ -108,7 +109,7 @@ def exec_fortigate(ssh, comando):
     stdin, stdout, stderr = ssh.exec_command(comando)
 
     outlines = stdout.read()
-    # with outlock:
+    #outlines = ""
 
     ssh.close()
 
@@ -214,6 +215,8 @@ def controller_backup(folder_name, backup_path, path_name_temp, ruta_destino, nu
     # Si no exite la carpeta que guarda el historial del dispositivo, se crea!
     folder_device(backup_path, folder_name)
 
+    # print data_cleaned.replace("--More--", "")
+
     witter_file(path_name_temp, data.replace("--More--", ""))
 
     folder_incremental(path_name_temp, ruta_destino, numero_copias, "forti")
@@ -277,4 +280,5 @@ def main():
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
     main()

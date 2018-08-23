@@ -10,6 +10,9 @@ pip install paramiko
 pip install unipath
 ```
 
+## Download Binario para windows
+[https://github.com/sistemasnegros/forti_backup/blob/master/dist/forti_backup.exe](https://github.com/sistemasnegros/forti_backup/blob/master/dist/forti_backup.exe)
+
 ## Configure los parametros de conexion SSH en el archivo: forti_backup.csv
 ```
 #ip,port,usuario,password,nombre
